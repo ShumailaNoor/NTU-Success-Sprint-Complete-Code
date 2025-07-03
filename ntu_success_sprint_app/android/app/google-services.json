@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "882790840740",
+    "firebase_url": "https://ntu-success-sprint-default-rtdb.firebaseio.com",
+    "project_id": "ntu-success-sprint",
+    "storage_bucket": "ntu-success-sprint.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:882790840740:android:384b2aa497f9e16be86931",
+        "android_client_info": {
+          "package_name": "com.example.ntu_success_sprint_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAz9F6ASUdv84OX9HKFLYM868EB9YVDPHE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
