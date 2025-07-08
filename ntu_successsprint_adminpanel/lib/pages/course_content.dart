@@ -19,9 +19,13 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
   String? selectedSemester;
   String? selectedCourse;
   Map<String, String> courses = {};
-  Map<String, String> courseContent = {};
+  Map<String, Map<String, dynamic>> courseContent = {};
   final TextEditingController _addContentController = TextEditingController();
   final TextEditingController _editContentController = TextEditingController();
+
+  String? _selectedAfterKey; // Added to fix undefined name error
+  List<Map<String, dynamic>> _courseTopics =
+      []; // Added to fix undefined name error
 
 // Fetch Courses from Firebase
   void _fetchCourses() {
@@ -59,32 +63,82 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
     });
   }
 
-  // Add Course Content to Firebase
-  void _addCourseContent() {
-    if (_addContentController.text.isNotEmpty) {
-      database
-          .child("All Courses")
-          .child(selectedCourse!)
-          .push()
-          .set({"content": _addContentController.text.trim()}).then((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Course Content Outline Added Successfully!"),
-          ),
-        );
-        Navigator.pop(context);
-        _addContentController.clear();
-      }).catchError((error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: $error"),
-          ),
-        );
-      });
+  Future<void> _handleAddContentClick(String purpose) async {
+    await _fetchCourseContent();
+
+    if (purpose.contains('Add')) {
+      _showAddContentDialog();
+    } else if (purpose.contains('Update')) {
+      _showUpdateCourseContentDialog();
+    } else {
+      _showDeleteCourseContentDialog();
     }
   }
 
-  Future<void> _fetchCourseContent(String purpose) async {
+  // Add Course Content to Firebase
+  void _addCourseContent() async {
+    if (_addContentController.text.isEmpty) return;
+
+    final courseRef = database.child("All Courses").child(selectedCourse!);
+
+    double newSequence = 1.0;
+
+    if (_selectedAfterKey != null) {
+      final entries = courseContent.entries.toList()
+        ..sort((a, b) =>
+            (a.value['sequence'] as num).compareTo(b.value['sequence'] as num));
+
+      if (_selectedAfterKey == "TOP_OF_LIST") {
+        // Insert before the first item
+        final double firstSeq = entries.first.value['sequence'].toDouble();
+        newSequence = firstSeq - 1; // ensures it's before all others
+      } else {
+        final currentIndex =
+            entries.indexWhere((e) => e.key == _selectedAfterKey);
+        final double currentSeq =
+            entries[currentIndex].value['sequence'].toDouble();
+        final double? nextSeq = currentIndex + 1 < entries.length
+            ? entries[currentIndex + 1].value['sequence'].toDouble()
+            : null;
+        newSequence =
+            nextSeq != null ? (currentSeq + nextSeq) / 2 : currentSeq + 1;
+      }
+    } else {
+      // If no position selected, just append
+      final snapshot =
+          await courseRef.orderByChild("sequence").limitToLast(1).get();
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+
+        final sorted = data.entries.toList()
+          ..sort((a, b) => ((a.value["sequence"] ?? 0) as num)
+              .compareTo((b.value["sequence"] ?? 0) as num));
+
+        final lastEntry = sorted.last;
+        final lastSeq = (lastEntry.value["sequence"] ?? 0).toDouble();
+        newSequence = lastSeq + 1;
+      }
+    }
+
+    await courseRef.push().set({
+      "content": _addContentController.text.trim(),
+      "sequence": newSequence,
+    }).then((_) async {
+      await _fetchCourseContent();
+      Navigator.pop(context);
+      _addContentController.clear();
+      _selectedAfterKey = null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Course Content Outline Added Successfully!")),
+      );
+    }).catchError((error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $error")),
+      );
+    });
+  }
+
+  Future<void> _fetchCourseContent() async {
     if (selectedProgram == null ||
         selectedSemester == null ||
         selectedCourse == null ||
@@ -99,28 +153,28 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
         database.child("All Courses").child(selectedCourse!);
 
     try {
-      DatabaseEvent event = await contentRef.once();
+      DatabaseEvent event = await contentRef.orderByChild("sequence").once();
       if (event.snapshot.value != null) {
         Map<dynamic, dynamic> data =
             event.snapshot.value as Map<dynamic, dynamic>;
-        Map<String, String> contentMap = {};
+        Map<String, Map<String, dynamic>> contentMap = {};
 
         data.forEach((key, value) {
           if (value is Map && value.containsKey("content")) {
-            contentMap[key.toString()] = value["content"].toString();
+            contentMap[key.toString()] = {
+              "content": value["content"].toString(),
+              "sequence": value["sequence"] ?? 0.0
+            };
           }
         });
+        // Sort by sequence
+        final sortedContent = Map.fromEntries(contentMap.entries.toList()
+          ..sort((a, b) => (a.value['sequence'] as num)
+              .compareTo(b.value['sequence'] as num)));
 
         setState(() {
-          courseContent = contentMap;
+          courseContent = sortedContent;
         });
-
-        // Invoke the respective dialog
-        if (purpose.contains('Update')) {
-          _showUpdateCourseContentDialog();
-        } else {
-          _showDeleteCourseContentDialog();
-        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("No course content found.")),
@@ -133,7 +187,7 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
     }
   }
 
-// Update Course Content in Firebase
+//Update Course Content in Firebase
   Future<void> _updateCourseContent(String key, String newContent) async {
     await database
         .child("All Courses")
@@ -150,7 +204,7 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
     });
   }
 
-// Delete Course Content from Firebase
+//Delete Course Content from Firebase
   void _deleteCourseContent(String key, Function setDialogState) {
     if (selectedProgram == null ||
         selectedSemester == null ||
@@ -184,20 +238,69 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
         return AlertDialog(
           backgroundColor: Colors.white,
           title: Text("Add Course Content"),
-          content: SizedBox(
-            width: 200,
-            child: TextField(
-              controller: _addContentController,
-              onSubmitted: (value) => _addCourseContent(),
-              decoration: InputDecoration(
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: primaryColor, width: 2),
-                  borderRadius: BorderRadius.circular(10),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (courseContent.isNotEmpty)
+                SizedBox(
+                  width: 300,
+                  child: DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    dropdownColor: Colors.white,
+                    decoration: InputDecoration(
+                      hintText: "Insert At",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: primaryColor, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    style: TextStyle(
+                      // This controls the selected item text style
+                      fontSize: 16,
+                      color: Colors.black,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: "TOP_OF_LIST",
+                        child: Text("Insert at the beginning"),
+                      ),
+                      ...courseContent.entries
+                          .map((entry) => DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(entry.value['content']),
+                              )),
+                    ],
+                    onChanged: (value) {
+                      _selectedAfterKey = value;
+                    },
+                  ),
+                ),
+              if (courseContent.isEmpty)
+                Text(
+                  "No topics available. This will be the first.",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _addContentController,
+                  onSubmitted: (value) => _addCourseContent(),
+                  decoration: InputDecoration(
+                    hintText: "Enter New Course Content",
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
           actions: [
             TextButton(
@@ -246,7 +349,7 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                 itemCount: courseContent.length,
                 itemBuilder: (context, index) {
                   String key = courseContent.keys.elementAt(index);
-                  String content = courseContent[key]!;
+                  String content = courseContent[key]!['content'];
 
                   return ListTile(
                     title: Text(content),
@@ -273,7 +376,11 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                                       _updateCourseContent(key, newContent)
                                           .then((_) {
                                         setDialogState(() {
-                                          courseContent[key] = newContent;
+                                          courseContent[key] = {
+                                            "content": newContent,
+                                            "sequence":
+                                                courseContent[key]!['sequence'],
+                                          };
                                           updatedKeys.add(key);
                                         });
                                         Navigator.pop(context);
@@ -314,7 +421,11 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                                       _updateCourseContent(key, newContent)
                                           .then((_) {
                                         setDialogState(() {
-                                          courseContent[key] = newContent;
+                                          courseContent[key] = {
+                                            "content": newContent,
+                                            "sequence":
+                                                courseContent[key]!['sequence'],
+                                          };
                                           updatedKeys.add(key);
                                         });
                                         Navigator.pop(context);
@@ -391,7 +502,7 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                 itemCount: courseContent.length,
                 itemBuilder: (context, index) {
                   String key = courseContent.keys.elementAt(index);
-                  String content = courseContent[key]!;
+                  String content = courseContent[key]!['content'];
 
                   return ListTile(
                     title: Text(content),
@@ -524,7 +635,7 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                     );
                     return;
                   }
-                  _showAddContentDialog();
+                  _handleAddContentClick("Add");
                 },
                 color: tertiaryColor,
               ),
@@ -532,7 +643,18 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                 icon: Icons.edit,
                 text: "Update Course Topic",
                 onTap: () {
-                  _fetchCourseContent("Update");
+                  if (selectedProgram == null ||
+                      selectedSemester == null ||
+                      selectedCourse == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text("Please select Program, Semester and Course"),
+                      ),
+                    );
+                    return;
+                  }
+                  _handleAddContentClick("Update");
                 },
                 color: primaryColor,
               ),
@@ -540,7 +662,18 @@ class _ManageCourseOutlineState extends State<ManageCourseOutline> {
                 icon: Icons.delete,
                 text: "Delete Course Topic",
                 onTap: () {
-                  _fetchCourseContent("Delete");
+                  if (selectedProgram == null ||
+                      selectedSemester == null ||
+                      selectedCourse == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text("Please select Program, Semester and Course"),
+                      ),
+                    );
+                    return;
+                  }
+                  _handleAddContentClick("Delete");
                 },
                 color: secondaryColor,
               ),

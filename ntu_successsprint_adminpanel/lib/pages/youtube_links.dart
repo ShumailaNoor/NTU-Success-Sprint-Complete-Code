@@ -1,9 +1,11 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:ntu_successsprint_adminpanel/constant.dart';
+import 'package:ntu_successsprint_adminpanel/video_generator_services.dart';
 import 'package:ntu_successsprint_adminpanel/widgets/custom_card.dart';
 import 'package:ntu_successsprint_adminpanel/widgets/dropdown.dart';
 import 'package:ntu_successsprint_adminpanel/widgets/fetched_list_view.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ManageYoutubeLink extends StatefulWidget {
   const ManageYoutubeLink({super.key});
@@ -22,15 +24,6 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
   Map<String, String> courses = {};
   Map<String, String> courseContents = {};
   Map<String, Map<String, String>> youtubeLinks = {};
-
-  final TextEditingController _addTitleController = TextEditingController();
-  final TextEditingController _addLinkController = TextEditingController();
-  final TextEditingController _addTranscriptController =
-      TextEditingController();
-  final TextEditingController _editTitleController = TextEditingController();
-  final TextEditingController _editUrlController = TextEditingController();
-  final TextEditingController _editTranscriptController =
-      TextEditingController();
 
   void _fetchCourses() {
     if (selectedProgram == null || selectedSemester == null) return;
@@ -103,35 +96,7 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
     });
   }
 
-  void _addYouTubeVideo() {
-    if (_addTitleController.text.isNotEmpty &&
-        _addLinkController.text.isNotEmpty) {
-      database.child("All Topics").child(selectedTopic!).push().set({
-        "title": _addTitleController.text.trim(),
-        "link_url": _addLinkController.text.trim(),
-        "transcript": _addTranscriptController.text.trim(),
-      }).then((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("YouTube Video Data Added Successfully!")),
-        );
-        Navigator.pop(context);
-        _addTitleController.clear();
-        _addLinkController.clear();
-        _addTranscriptController.clear();
-      }).catchError((error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $error")),
-        );
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please enter title, link and transcript!")),
-      );
-    }
-  }
-
-  // Fetch YouTube Videos from Firebase
-  Future<void> _fetchYouTubeVideos(String purpose) async {
+  Future<void> _fetchYouTubeVideos() async {
     if (selectedProgram == null ||
         selectedSemester == null ||
         selectedCourse == null ||
@@ -169,13 +134,7 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
         setState(() {
           youtubeLinks = videoMap;
         });
-
-        // Invoke the respective dialog
-        if (purpose.contains('Update')) {
-          _showUpdateYouTubeVideoDialog();
-        } else {
-          _showDeleteYouTubeVideoDialog();
-        }
+        _showDeleteYouTubeVideoDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("No YouTube videos found.")),
@@ -186,24 +145,6 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
         SnackBar(content: Text("Error fetching videos: $error")),
       );
     }
-  }
-
-// Update YouTube Video in Firebase
-  Future<void> _updateYouTubeVideo(
-      String key, String newTitle, String newUrl, String newTranscript) async {
-    await database.child("All Topics").child(selectedTopic!).child(key).update({
-      "title": newTitle,
-      "link_url": newUrl,
-      "transcript": newTranscript
-    }).then((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("YouTube Video Updated Successfully!")),
-      );
-    }).catchError((error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating video: $error")),
-      );
-    });
   }
 
   void _deleteYouTubeVideo(String key, Function setDialogState) {
@@ -237,321 +178,392 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
   }
 
   void _showAddYouTubeVideoDialog() {
+    String selectedLanguage = 'English Only';
+    final List<String> _languageOptions = ['English Only', 'Urdu/Hindi Only'];
+    bool isLoading = false;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          title: Text("Add YouTube Video"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 400,
-                child: TextField(
-                  controller: _addTitleController,
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: Text("Generate AI Video"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedLanguage,
                   decoration: InputDecoration(
-                    hintText: "Video Title",
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: primaryColor, width: 2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    labelText: "Select Language",
+                    border: OutlineInputBorder(),
                   ),
+                  items: _languageOptions.map((lang) {
+                    return DropdownMenuItem<String>(
+                      value: lang,
+                      child: Text(lang),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedLanguage = value;
+                      });
+                    }
+                  },
                 ),
-              ),
-              SizedBox(height: 10),
-              SizedBox(
-                width: 400,
-                child: TextField(
-                  controller: _addLinkController,
-                  decoration: InputDecoration(
-                    hintText: "YouTube Link",
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: primaryColor, width: 2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 10),
-              SizedBox(
-                width: 400,
-                height: 240,
-                child: TextFormField(
-                  controller: _addTranscriptController,
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                    hintText: "Transcript",
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: primaryColor, width: 2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                SizedBox(height: 20),
+                isLoading
+                    ? Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text("Fetching videos and transcripts..."),
+                        ],
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: () async {
+                          setState(() {
+                            isLoading = true;
+                          });
+
+                          try {
+                            final results =
+                                await VideoGeneratorService.generateForTopic(
+                              selectedTopic!,
+                              selectedCourse!,
+                              selectedLanguage,
+                            );
+
+                            setState(() {
+                              isLoading = false;
+                            });
+
+                            if (results.isEmpty) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("⚠️ No videos found."),
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Close current dialog and show preview
+                            Navigator.pop(context);
+                            _showVideoPreviewDialog(
+                                results.first, selectedLanguage);
+                          } catch (e) {
+                            setState(() {
+                              isLoading = false;
+                            });
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e")),
+                            );
+                            print("🛑 Error generating videos: $e");
+                          }
+                        },
+                        icon: Icon(
+                          Icons.auto_fix_high,
+                          color: Colors.white,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        label: Text("Search with AI"),
+                      ),
+                SizedBox(height: 20),
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Text("Cancel", style: TextStyle(color: secondaryColor)),
-            ),
-            ElevatedButton.icon(
-              onPressed: _addYouTubeVideo,
-              label: Text("Add"),
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
         );
       },
     );
   }
 
-  // Show Update YouTube Video Dialog
-  void _showUpdateYouTubeVideoDialog() {
+  void _showVideoPreviewDialog(
+      Map<String, String> video, String selectedLanguage) {
+    bool isSaving = false;
+    final TextEditingController transcriptController =
+        TextEditingController(text: video["transcript"]);
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
-        Set<String> updatedKeys = {};
         return StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            backgroundColor: Colors.white,
-            title: Text("Update YouTube Videos"),
-            content: SizedBox(
-              height: 350,
-              width: 450,
-              child: ListView.builder(
-                itemCount: youtubeLinks.length,
-                itemBuilder: (context, index) {
-                  String key = youtubeLinks.keys.elementAt(index);
-                  Map<String, String> linkData = youtubeLinks[key]!;
-                  String title = linkData["title"]!;
-                  String url = linkData["link_url"]!;
-                  String transcript = linkData["transcript"]!;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(title),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(url, style: TextStyle(color: secondaryColor)),
-                        const SizedBox(height: 5),
-                        Text(transcript,
-                            maxLines: 3,
-                            style: TextStyle(
-                              color: primaryColor,
-                            )),
-                      ],
-                    ),
-                    shape: Border(
-                      bottom: BorderSide(
-                        color: Colors.grey,
-                        width: 0.5,
+          builder: (context, setState) => AlertDialog(
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Video Preview"),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.black),
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                  },
+                ),
+              ],
+            ),
+            content: Container(
+              width: 400,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Video Title
+                    Text(
+                      "Title:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                    trailing: IconButton(
-                      icon: Icon(Icons.edit, color: secondaryColor),
-                      onPressed: () {
-                        _editTitleController.text = title;
-                        _editUrlController.text = url;
-                        _editTranscriptController.text = transcript;
+                    SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Text(
+                        video["title"] ?? "Untitled Video",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
 
-                        showDialog(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              backgroundColor: Colors.white,
-                              title: Text("Edit YouTube Video"),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 400,
-                                    child: TextField(
-                                      controller: _editTitleController,
-                                      decoration: InputDecoration(
-                                        labelText: "Video Title",
-                                        labelStyle:
-                                            TextStyle(color: primaryColor),
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: primaryColor, width: 2),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: 20),
-                                  SizedBox(
-                                    width: 400,
-                                    child: TextField(
-                                      controller: _editUrlController,
-                                      decoration: InputDecoration(
-                                        labelText: "YouTube URL",
-                                        labelStyle:
-                                            TextStyle(color: primaryColor),
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: primaryColor, width: 2),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: 20),
-                                  SizedBox(
-                                    width: 400,
-                                    height: 240,
-                                    child: TextFormField(
-                                      controller: _editTranscriptController,
-                                      expands: true,
-                                      maxLines: null,
-                                      minLines: null,
-                                      keyboardType: TextInputType.multiline,
-                                      decoration: InputDecoration(
-                                        labelText: "Transcript",
-                                        labelStyle:
-                                            TextStyle(color: primaryColor),
-                                        border: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10)),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: primaryColor, width: 2),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: TextButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    "Cancel",
-                                    style: TextStyle(color: secondaryColor),
-                                  ),
+                    SizedBox(height: 16),
+
+                    // Video Link
+                    Text(
+                      "YouTube Link:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: secondaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: secondaryColor.withOpacity(0.3)),
+                      ),
+                      child: InkWell(
+                        onTap: () async {
+                          // Open YouTube link in browser
+                          final url = video["link"] ?? "";
+                          if (await canLaunchUrl(Uri.parse(url))) {
+                            await launchUrl(Uri.parse(url),
+                                mode: LaunchMode.externalApplication);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text("❌ Could not launch URL.")),
+                            );
+                          }
+                        },
+                        child: Row(
+                          children: [
+                            Icon(Icons.link,
+                                color: secondaryColor.withOpacity(0.6),
+                                size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                video["link"] ?? "No link available",
+                                style: TextStyle(
+                                  color: secondaryColor,
+                                  fontSize: 14,
+                                  decoration: TextDecoration.underline,
                                 ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    String newTitle =
-                                        _editTitleController.text.trim();
-                                    String newUrl =
-                                        _editUrlController.text.trim();
-                                    String newTranscript =
-                                        _editTranscriptController.text.trim();
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
-                                    if (newTitle.isNotEmpty &&
-                                        newUrl.isNotEmpty &&
-                                        newTranscript.isNotEmpty &&
-                                        newUrl.startsWith("http")) {
-                                      _updateYouTubeVideo(key, newTitle, newUrl,
-                                              newTranscript)
-                                          .then((_) {
-                                        setDialogState(() {
-                                          youtubeLinks[key]!["title"] =
-                                              newTitle;
-                                          youtubeLinks[key]!["link_url"] =
-                                              newUrl;
-                                          youtubeLinks[key]!["transcript"] =
-                                              newTranscript;
-                                          updatedKeys.add(key);
-                                        });
-                                        Navigator.pop(context);
+                    SizedBox(height: 16),
+
+                    // Language
+                    Text(
+                      "Language:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border:
+                            Border.all(color: primaryColor.withOpacity(0.2)),
+                      ),
+                      child: Text(
+                        selectedLanguage,
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // Transcript Preview
+                    Text(
+                      "Transcript:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    TextField(
+                      controller: transcriptController,
+                      maxLines: 5,
+                      decoration: InputDecoration(
+                        hintText: "Enter transcript here...",
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: primaryColor),
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        // Regenerate Button
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: isSaving
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    _showAddYouTubeVideoDialog(); // Go back to generate new video
+                                  },
+                            icon: Icon(Icons.refresh, color: secondaryColor),
+                            label: Text("Regenerate"),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(width: 12),
+
+                        // Save Button
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: isSaving
+                                ? null
+                                : () async {
+                                    setState(() {
+                                      isSaving = true;
+                                    });
+
+                                    try {
+                                      print("🎬 Saving Video:");
+                                      print("→ Title: ${video["title"]}");
+                                      print("→ Link: ${video["link"]}");
+                                      print(
+                                          "→ Transcript: ${video["transcript"]}");
+
+                                      await database
+                                          .child("All Topics")
+                                          .child(selectedTopic!)
+                                          .push()
+                                          .set({
+                                        "title":
+                                            video["title"] ?? "Untitled Video",
+                                        "link_url": video["link"] ?? "",
+                                        "language": selectedLanguage,
+                                        "transcript": transcriptController.text
+                                                .trim()
+                                                .isNotEmpty
+                                            ? transcriptController.text.trim()
+                                            : "Transcript not provided",
                                       });
-                                    } else {
+
+                                      Navigator.pop(
+                                          context); // Close preview dialog
+
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
-                                            content: Text(
-                                                "Enter valid title, URL and Transcript!")),
+                                          content: Text(
+                                              "✅ Video saved successfully!"),
+                                        ),
                                       );
+                                    } catch (e) {
+                                      setState(() {
+                                        isSaving = false;
+                                      });
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content:
+                                              Text("❌ Error saving video: $e"),
+                                        ),
+                                      );
+                                      print("🛑 Error saving video: $e");
                                     }
                                   },
-                                  style: ElevatedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                            icon: isSaving
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
-                                    backgroundColor: primaryColor,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: Text("Update"),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
+                                  )
+                                : Icon(Icons.save, color: Colors.white),
+                            label: Text(isSaving ? "Saving..." : "Save Video"),
+                            style: ElevatedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  "Cancel",
-                  style: TextStyle(color: secondaryColor),
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: updatedKeys.isNotEmpty
-                    ? () => Navigator.pop(context)
-                    : null,
-                label: Text("Done"),
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  backgroundColor:
-                      updatedKeys.isNotEmpty ? primaryColor : Colors.grey,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
           ),
         );
       },
@@ -711,8 +723,8 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               CustomCard(
-                icon: Icons.add,
-                text: "Add Content YouTube Link",
+                icon: Icons.smart_toy,
+                text: "Search via AI",
                 onTap: () {
                   if (selectedProgram == null ||
                       selectedSemester == null ||
@@ -721,29 +733,32 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                           content: Text(
-                              "Please select a program, semester, course and topic to add a YouTube link.")),
+                              "Please select a program, semester, course and topic.")),
                     );
                     return;
                   }
                   _showAddYouTubeVideoDialog();
                 },
-                color: tertiaryColor,
-              ),
-              CustomCard(
-                icon: Icons.edit,
-                text: "Update Content YouTube Link",
-                onTap: () {
-                  _fetchYouTubeVideos("Update");
-                },
-                color: primaryColor,
+                color: secondaryColor,
               ),
               CustomCard(
                 icon: Icons.delete,
-                text: "Delete Content YouTube Link",
+                text: "Delete Youtube Videos",
                 onTap: () {
-                  _fetchYouTubeVideos('Delete');
+                  if (selectedProgram == null ||
+                      selectedSemester == null ||
+                      selectedCourse == null ||
+                      selectedTopic == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              "Please select a program, semester, course and topic.")),
+                    );
+                    return;
+                  }
+                  _fetchYouTubeVideos();
                 },
-                color: secondaryColor,
+                color: primaryColor,
               ),
             ],
           ),
@@ -787,6 +802,7 @@ class _ManageYoutubeLinkState extends State<ManageYoutubeLink> {
                       : null,
                   database: database,
                   fieldKey: "title",
+                  languageKey: "language",
                   urlKey: "link_url",
                   transcriptKey: "transcript",
                   emptyMessage:
