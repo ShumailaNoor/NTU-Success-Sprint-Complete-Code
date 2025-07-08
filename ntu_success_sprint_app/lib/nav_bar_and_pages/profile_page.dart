@@ -96,7 +96,9 @@ class _ProfilePageState extends State<ProfilePage> {
             borderRadius: BorderRadius.circular(12),
           ),
           icon: Icon(Icons.edit, color: primaryColor, size: 40),
-          title: Text("Update $field"),
+          title: Text("Update $field",
+              style: TextStyle(
+                  color: secondaryColor, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -126,6 +128,10 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
           actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
             ElevatedButton(
               onPressed: () async {
                 final newValue = controller.text.trim();
@@ -194,10 +200,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: TextStyle(
                     color: Colors.white,
                   )),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
             ),
           ],
         );

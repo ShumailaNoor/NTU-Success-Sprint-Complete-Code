@@ -25,10 +25,12 @@ class VideoProvider extends ChangeNotifier {
         data.forEach((key, value) {
           if (value is Map &&
               value.containsKey("title") &&
+              value.containsKey("language") &&
               value.containsKey("link_url") &&
               value.containsKey("transcript")) {
             videoMap[key.toString()] = {
               "title": value["title"].toString(),
+              "language": value["language"]?.toString() ?? "Unknown",
               "link_url": value["link_url"].toString(),
               "transcript": value["transcript"].toString(),
             };

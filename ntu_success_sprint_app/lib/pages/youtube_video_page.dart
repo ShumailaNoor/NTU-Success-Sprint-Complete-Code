@@ -109,23 +109,38 @@ class _YouTubeVideoPageState extends State<YouTubeVideoPage> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
-          title: Text("Login Required"),
-          content: Text("You need to be logged in to give the quiz."),
+          icon: Icon(Icons.warning, color: primaryColor, size: 40),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Text("Login Required",
+              style: TextStyle(
+                  color: secondaryColor, fontWeight: FontWeight.bold)),
+          content: Text("You need to be logged in to give the quiz.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[700])),
           actions: [
             TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text("Cancel"),
+            ),
+            ElevatedButton(
               onPressed: () {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => LoginPage()),
                 );
               },
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
               child: Text("Go to Login Page"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text("Cancel"),
             ),
           ],
         );
@@ -235,11 +250,19 @@ class _YouTubeVideoPageState extends State<YouTubeVideoPage> {
                           (i) {
                             final title = videoProvider.youtubeLinks.values
                                 .elementAt(i)["title"]!;
+                            final language = videoProvider.youtubeLinks.values
+                                    .elementAt(i)["language"] ??
+                                "Unknown";
+                            final transcript = videoProvider.youtubeLinks.values
+                                    .elementAt(i)["transcript"] ??
+                                "";
                             final controller = videoProvider.controllers[i];
                             return VideoPlayerCard(
                               size: size,
                               controller: controller,
                               title: title,
+                              language: language,
+                              transcript: transcript,
                               isLastVideo:
                                   i == videoProvider.youtubeLinks.length - 1,
                             );

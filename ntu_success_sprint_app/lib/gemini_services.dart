@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class GeminiService {
   static const String _apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
   static const String _apiKey =
-      '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'; // 🔑 Replace with your actual key
+      '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'; // 🔑 Replace with your actual key
 
   static Future<List<Map<String, dynamic>>> generateMcqs(String input) async {
     print('[GeminiService] Step 1: Preparing prompt...');
@@ -39,7 +39,7 @@ $input
         },
         body: jsonEncode({
           "model":
-              "deepseek/deepseek-chat-v3-0324:free", // You can change the variant here
+              "google/gemini-2.0-flash-001", // You can change the variant here
           "messages": [
             {"role": "user", "content": prompt}
           ],

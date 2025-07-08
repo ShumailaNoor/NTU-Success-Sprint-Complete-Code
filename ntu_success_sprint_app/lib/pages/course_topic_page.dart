@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:ntu_success_sprint_app/constant.dart';
@@ -23,6 +21,8 @@ class _CourseAndTopicPageState extends State<CourseAndTopicPage> {
   final database = FirebaseDatabase.instance.ref();
   Map<String, String> courseTitles = {};
   Map<String, String> courseContent = {};
+  TextEditingController searchController = TextEditingController();
+  String searchQuery = '';
 
   String? selectedCourse;
   String? selectedTopic;
@@ -68,15 +68,25 @@ class _CourseAndTopicPageState extends State<CourseAndTopicPage> {
         Map<dynamic, dynamic> values =
             event.snapshot.value as Map<dynamic, dynamic>;
 
-        final orderedValues = LinkedHashMap.from(values);
+        final sortedEntries = values.entries.toList()
+          ..sort((a, b) {
+            final aSeq = a.value['sequence'] ?? 0;
+            final bSeq = b.value['sequence'] ?? 0;
+            return (aSeq is num ? aSeq : int.tryParse(aSeq.toString()) ?? 0)
+                .compareTo(
+                    bSeq is num ? bSeq : int.tryParse(bSeq.toString()) ?? 0);
+          });
 
         Map<String, String> topics = {};
-        orderedValues.forEach((key, value) {
+        for (var entry in sortedEntries) {
+          final key = entry.key;
+          final value = entry.value;
           print("Found topic key: $key, value: $value");
+
           if (value is Map && value.containsKey("content")) {
             topics[key] = value["content"];
           }
-        });
+        }
 
         setState(() {
           courseContent = topics;
@@ -173,30 +183,62 @@ class _CourseAndTopicPageState extends State<CourseAndTopicPage> {
                     borderRadius: BorderRadius.circular(size.width * 0.033),
                     border: Border.all(color: secondaryColor, width: 2),
                   ),
-                  child: courseContent.isEmpty
-                      ? Center(
-                          child: Text(
-                            "No topics available.",
-                            style: TextStyle(color: Colors.black54),
+                  child: Column(
+                    children: [
+                      // 🔍 Search Field
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0, vertical: 8),
+                        child: TextField(
+                          controller: searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search topics...',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                        )
-                      : ListView(
-                          children: courseContent.entries.map((entry) {
-                            return RadioListTile<String>(
-                              title: Text(entry.value),
-                              fillColor:
-                                  MaterialStateProperty.all(secondaryColor),
-                              value: entry.key,
-                              groupValue: selectedTopic,
-                              onChanged: (value) {
-                                setState(() {
-                                  selectedTopic = value;
-                                });
-                              },
-                              activeColor: primaryColor,
-                            );
-                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              searchQuery = value.toLowerCase();
+                            });
+                          },
                         ),
+                      ),
+
+                      // 📝 Filtered List
+                      Expanded(
+                        child: courseContent.isEmpty
+                            ? Center(
+                                child: Text(
+                                  "No topics available.",
+                                  style: TextStyle(color: Colors.black54),
+                                ),
+                              )
+                            : ListView(
+                                children: courseContent.entries
+                                    .where((entry) => entry.value
+                                        .toLowerCase()
+                                        .contains(searchQuery))
+                                    .map((entry) {
+                                  return RadioListTile<String>(
+                                    title: Text(entry.value),
+                                    fillColor: MaterialStateProperty.all(
+                                        secondaryColor),
+                                    value: entry.key,
+                                    groupValue: selectedTopic,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        selectedTopic = value;
+                                      });
+                                    },
+                                    activeColor: primaryColor,
+                                  );
+                                }).toList(),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 

@@ -117,14 +117,17 @@ class _LoginPageState extends State<LoginPage> {
         builder: (context) {
           return AlertDialog(
             backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            icon: Icon(Icons.lock_reset, color: primaryColor, size: 40),
             title: Text(
               'Password Reset Email Sent',
               style: TextStyle(color: primaryColor),
             ),
-            content: Text(
-              'Check your email for the password reset link.',
-              style: TextStyle(color: secondaryColor),
-            ),
+            content: Text('Check your email for the password reset link.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[700])),
             actions: [
               ElevatedButton.icon(
                 onPressed: () {
