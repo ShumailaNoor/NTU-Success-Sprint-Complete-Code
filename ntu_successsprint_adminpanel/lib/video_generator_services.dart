@@ -1,13 +1,13 @@
-import 'dart:convert';
+ceimport 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class VideoGeneratorService {
   static const String _openAiUrl =
       'https://openrouter.ai/api/v1/chat/completions';
   static const String _openAiKey =
-      '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';
+      'replace_with_your_key';
   static const String _youtubeApiKey =
-      'AIzaSyAOMjXUfuRE3jl1Ag1hnLaYuRXsfE_K09k';
+      'replace_with_your_key';
 
   static Future<List<Map<String, String>>> generateForTopic(
       String topic, String course, String languageOption) async {
